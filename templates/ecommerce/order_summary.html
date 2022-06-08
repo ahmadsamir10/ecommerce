@@ -3,20 +3,14 @@
 
 {% block head_title %} Order Summary {% endblock %}
 
+
+
 {% block content %}
 
 
   <!--Main layout-->
   <main>
-    {% if messages %}
-    <div class="row mt-4">
-      <div class="col-12 text-center mt-5">
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags }}"> {{ message }}</div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
+  
     <div class="container" style="margin-top: 100px;">
 
         <div class="table-responsive">
@@ -25,7 +19,7 @@
             <table class="table">
                 <thead>
                     <tr>
-                      <th scope="col">#</th>
+                      <th scope="col"></th>
                       <th scope="col">Item</th>
                       <th scope="col">Price</th>
                       <th scope="col">Quantity</th>
@@ -35,23 +29,23 @@
                   <tbody>
                     {% for order_item in order.items.all %}
                     <tr>
-                      <th scope="row">{{ forloop.counter }}</th>
+                      <th scope="row"></th>
                       <td>{{ order_item.item.title }}</td>
                       <td>${{ order_item.item.price }}</td>
-                      <td> <a href="{% url 'core:remove_from_cart' order_item.item.slug %}"><i class="fas fa-minus mr-2"></i></a> {{ order_item.quantity }} <a href="{% url 'core:add_to_cart' order_item.item.slug %}"><i class="fas fa-plus ml-2"></i></a> </td>
-                      <td>${{ order_item.total_item_price }}</td>
-                      <td><a class="float-right" href="{% url 'core:remove_all_item' order_item.item.slug %}"><i class="fas fa-trash"></i></a></td>
+                      <td> <a class="remove-from-cart" link="{% url 'core:remove_from_cart' order_item.item.slug %}"><i class="fas fa-minus mr-2"></i></a> <span>{{ order_item.quantity }}</span> <a class="add-to-cart" link="{% url 'core:add_to_cart' order_item.item.slug %}"><i class="fas fa-plus ml-2"></i></a> </td>
+                      <td class="totalItemPrice" ><span>${{ order_item.total_item_price }}</td>
+                      <td><a link="{% url 'core:remove_all_item' order_item.item.slug %}" class="remove-all float-right"><i class="fas fa-trash"></i></a></td>
                     </tr>
                     {% endfor %}
                     <tr>
                       <th scope="row"></th>
                       <td colspan="3">Total Price</td>
-                      <td colspan="2">${{order.total_price}}</td>
+                      <td id="totalPrice" colspan="2">${{order.total_price}}</td>
                     </tr>
                   </tbody>
             </table>
-            <div class="container float-right">
-              <a href="{% url 'core:checkout' %}" class="btn btn-secondary float-right">Proceed to Checkout</a>
+            <div id="ContinueShopping" class="container float-right">
+              <a id="checkOut" href="{% url 'core:checkout' %}" class="btn btn-secondary float-right">Proceed to Checkout</a>
               <a href="{% url 'core:index' %}" class="btn btn-primary float-right">Continue Shopping</a>                     
             </div>
             {% else %}
@@ -65,4 +59,81 @@
     </div>
   </main>
   <!--Main layout-->
+{% endblock %}
+
+
+{% block script %}
+
+<script>
+  $(document).on('click', '.remove-all', function(){
+    const ulr_orgin = location.protocol + '//' + location.host
+    var removeAllPath = $(this).attr('link')
+    var removeAllLink = ulr_orgin+removeAllPath
+    var $t = $(this)
+    $.ajax({
+    url: removeAllLink,
+    type: 'GET',
+    success: function(res) {
+      var tr_len = $('table > tbody > tr').length
+      if (tr_len <= 2) {
+        $('table').remove();
+        $('#checkOut').remove();
+        $('<div class="col-12 display-6 text-center"><strong>No orders</strong></div>').insertBefore("#ContinueShopping");
+        $('#cartCounter').text(res.cart);
+      } else{
+
+        $t.parents().eq(1).remove();
+        $('#totalPrice').text('$'+res.total);
+        $('#cartCounter').text(res.cart);
+      }
+    }
+    
+});
+
+  });
+
+  $(document).on('click', '.add-to-cart', function(){
+    const ulr_orgin = location.protocol + '//' + location.host
+    var addToCartPath = $(this).attr('link')
+    var addToCartLink = ulr_orgin+addToCartPath
+    var $t = $(this)
+    $.ajax({
+      url: addToCartLink,
+      type: 'GET',
+      success: function(res){
+        $t.parents().children('.totalItemPrice').text('$' + res.item_total);
+        $t.parent().children('span').text(res.quantity);
+        $('#totalPrice').text('$'+res.total)
+      }
+    })
+  });
+
+  $(document).on('click', '.remove-from-cart', function(){
+    const ulr_orgin = location.protocol + '//' + location.host
+    var removeFromCartPath = $(this).attr('link')
+    var removeFromCartLink = ulr_orgin+removeFromCartPath
+    var $t = $(this)
+    $.ajax({
+      url: removeFromCartLink,
+      type: 'GET',
+      success: function(res){
+        if ($t.parent().children('span').text() == 1) {
+          var tr_len = $('table > tbody > tr').length
+          if (tr_len <= 2) {
+            $('table').remove();
+            $('#checkOut').remove();
+            $('<div class="col-12 display-6 text-center"><strong>No orders</strong></div>').insertBefore("#ContinueShopping");
+            $('#cartCounter').text(res.cart);
+          } else{
+            $t.parents().eq(1).remove();
+          }
+        };
+        $t.parents().children('.totalItemPrice').text('$' + res.item_total);
+        $t.parent().children('span').text(res.quantity);
+        $('#totalPrice').text('$'+res.total);
+      }
+    })
+  });
+</script>
+
 {% endblock %}

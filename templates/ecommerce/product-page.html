@@ -6,15 +6,7 @@
 {% block content %}
   <!--Main layout-->
   <main class="mt-5 pt-4">
-    {% if messages %}
-    <div class="row mt-4">
-      <div class="col-12 text-center mt-5">
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags }}"> {{ message }}</div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
+
     <div class="container dark-grey-text mt-5">
 
       <!--Grid row-->
@@ -23,7 +15,7 @@
         <!--Grid column-->
         <div class="col-md-6 mb-4">
 
-          <img src="https://mdbootstrap.com/img/Photos/Horizontal/E-commerce/Products/14.jpg" class="img-fluid" alt="">
+          <img src="{{item.main_image.url}}" class="img-fluid" alt="">
 
         </div>
         <!--Grid column-->
@@ -47,9 +39,11 @@
             </div>
 
             <p class="lead">
+              {% if item.old_price %}
               <span class="mr-1">
-                <del>$100</del>
+                <del>{{item.old_price}}</del>
               </span>
+              {% endif %}
               <span>${{item.price}}</span>
             </p>
 
@@ -58,7 +52,12 @@
             <p>{{item.description}}</p>
 
               <!-- Default input -->
-                <a class="btn btn-primary btn-md my-0 p" href="{% url 'core:add_to_cart' item.slug %}">Add to cart</a>
+                {% if user.is_authenticated %}
+                <a id="addToCart" class="btn btn-primary btn-md my-0 p">Add to cart</a>
+                {% else %}
+                <strong>Please sign in to add to your cart</strong>
+                <a href="{% url 'account_login' %}" class="btn btn-primary btn-md my-0 p">Sign in</a>
+                {% endif %}
 
 
           </div>
@@ -90,35 +89,39 @@
 
       <!--Grid row-->
       <div class="row wow fadeIn">
-
-        <!--Grid column-->
+        {% for instance in item.images.all %}
         <div class="col-lg-4 col-md-12 mb-4">
-
-          <img src="https://mdbootstrap.com/img/Photos/Horizontal/E-commerce/Products/11.jpg" class="img-fluid" alt="">
-
+          <img src="{{instance.image.url}}" class="img-fluid" alt="">
         </div>
-        <!--Grid column-->
-
-        <!--Grid column-->
-        <div class="col-lg-4 col-md-6 mb-4">
-
-          <img src="https://mdbootstrap.com/img/Photos/Horizontal/E-commerce/Products/12.jpg" class="img-fluid" alt="">
-
-        </div>
-        <!--Grid column-->
-
-        <!--Grid column-->
-        <div class="col-lg-4 col-md-6 mb-4">
-
-          <img src="https://mdbootstrap.com/img/Photos/Horizontal/E-commerce/Products/13.jpg" class="img-fluid" alt="">
-
-        </div>
-        <!--Grid column-->
-
+        {% endfor %}
       </div>
       <!--Grid row-->
 
     </div>
   </main>
   <!--Main layout-->
+{% endblock %}
+
+
+{% block script %}
+
+<script>
+  $("#addToCart").on('click', function(){
+    $.ajax({
+    url: "{% url 'core:add_to_cart' item.slug %}",
+    type: 'GET',
+    success: function(res) {
+        $('#cartCounter').text(res.cart)
+        if (res.quantity) {
+          alert(res.status+res.quantity);
+        }else{
+          alert(res.status);
+        }
+
+    }
+});
+
+  });
+</script>
+
 {% endblock %}

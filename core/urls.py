@@ -13,6 +13,7 @@ urlpatterns = [
     path('remove_all_item/<slug:slug>', views.RemoveAllItems.as_view(), name='remove_all_item'),
     path('order-summary/', views.OrderSummaryView.as_view(), name='order-summary'),
     path('checkout/', views.Checkout.as_view(), name='checkout'),
-    path('payment/<payment_method>/', views.PaymentView.as_view(), name='payment')
+    path('validate_promocode/', views.ValidatePromCodeView.as_view(), name='validate_promocode'),
+    path('payment/', views.PaymentView.as_view(), name='payment')
 ]
 
