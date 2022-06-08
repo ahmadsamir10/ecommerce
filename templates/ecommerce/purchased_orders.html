@@ -7,16 +7,8 @@
 
 
   <!--Main layout-->
-  <main>
-    {% if messages %}
-    <div class="row mt-4">
-      <div class="col-12 text-center mt-5">
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags }}"> {{ message }}</div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
+  <main >
+
     <div class="container" style="margin-top: 100px;">
       <div class="container float-right">
         <a href="{% url 'core:index' %}" class="btn btn-primary float-right">Continue Shopping</a>                     
@@ -48,10 +40,17 @@
                       <td>${{ order_item.total_item_price }}</td>
                     </tr>
                     {% endfor %}
+                    {% if order.promo_code %}
+                    <tr>
+                      <th scope="row"></th>
+                      <td colspan="3">Promocode</td>
+                      <td colspan="2">$-{{order.discount_amount}}</td>
+                    </tr>
+                    {% endif %}
                     <tr>
                       <th scope="row"></th>
                       <td colspan="3">Total Price</td>
-                      <td colspan="2">${{order.total_price}}</td>
+                      <td colspan="2">${{order.total_after_discount}}</td>
                     </tr>
                   </tbody>
             </table>

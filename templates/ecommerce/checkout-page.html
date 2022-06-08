@@ -7,16 +7,6 @@
 <!--Main layout-->
   <main class="mt-5 pt-4">
 
-    {% if messages %}
-    <div class="row mt-4">
-      <div class="col-12 text-center mt-5">
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags }}"> {{ message }}</div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-
     <div class="container wow fadeIn">
 
       <!-- Heading -->
@@ -30,27 +20,67 @@
 
           <!--Card-->
           <div class="card">
+            {% if order.billing_address %}
+            
+            <div class="card-body">
 
-            <!-- <form action="">
-              {% csrf_token %}
-              {{form|crispy}}
-            </form> -->
+              <!--address-->
+              <div class="row">
+                <div class="col-12 mb-4">
+                  <label>Address</label>
+                  <span class="form-control">{{order.billing_address.street_address}}</span>
+                </div>
+              </div>
+          
+              
+              <!--address-2-->
+              <div class="row">
+                <div class="col-12 mb-4">
+                  <label>Address 2</label>
+                  <span class="form-control">{% if order.billing_address.apartment_address %}order.billing_address.apartment_address{% endif %}</span>
+                </div>
+              </div>
+          
+              <!--Grid row-->
+              <div class="row">
+                <!--Grid column-->
+                <div class="col-lg-4 col-md-12 mb-4">
+                  <label for="country">Country</label>
+                  <span class="form-control">{{order.billing_address.country.name}}</span>
+                </div>
+                <!--Grid column-->
+          
+                <!--Grid column-->
+                <div class="col-lg-4 col-md-6 mb-4">
+          
+                  <label>Zip</label>
+                  <span class="form-control">{{order.billing_address.zip_code}}</span>
+          
+                </div>
+                <!--Grid column-->
+              </div>
+              <!--Grid row-->
+          
+              <div class="mb-3">
+                <label>Information saved</label>
+                <span class="form-control">{% if order.billing_address.save_info %} Yes {% else %} No {% endif %}</span>
+              </div>
+                    
+          </div>
 
+            {% else %}
             <!--Card content-->
-            <form class="card-body" method="post">
+            <form id="billingAddressForm" class="card-body" method="post">
               {% csrf_token %}
 
               <!--address-->
               <div class="md-form mb-5">
-                <!-- <input type="text" id="address" class="form-control" placeholder="1234 Main St">
-                 -->
                 {{ form.street_address }}
                 <label for="address" class="">Address</label>
               </div>
 
               <!--address-2-->
               <div class="md-form mb-5">
-                <!-- <input type="text" id="address-2" class="form-control" placeholder="Apartment or suite"> -->
                 {{form.apartment_address}}
                 <label for="address-2" class="">Address 2 (optional)</label>
               </div>
@@ -62,10 +92,6 @@
                 <div class="col-lg-4 col-md-12 mb-4">
 
                   <label for="country">Country</label>
-                  <!-- <select class="custom-select d-block w-100" id="country" required>
-                    <option value="">Choose...</option>
-                    <option>United States</option>
-                  </select> -->
                   {{form.country}}
                   <div class="invalid-feedback">
                     Please select a valid country.
@@ -75,12 +101,9 @@
                 <!--Grid column-->
 
                 <!--Grid column-->
-
-                <!--Grid column-->
                 <div class="col-lg-4 col-md-6 mb-4">
 
                   <label for="zip">Zip</label>
-                  <!-- <input type="text" class="form-control" id="zip" placeholder="" required> -->
                   {{form.zip_code}}
                   <div class="invalid-feedback">
                     Zip code required.
@@ -92,36 +115,35 @@
               </div>
               <!--Grid row-->
 
-              <hr>
-
-              <div class="custom-control custom-checkbox">
-                <input {%if form.same_billing_address.value%}checked{%endif%} type="checkbox" name="same_billing_address" class="custom-control-input" id="same-address">
-                <!-- {{form.same_billing_address}} -->
-                <label class="custom-control-label" for="same-address">Shipping address is the same as my billing address</label>
-              </div>
-              <div class="custom-control custom-checkbox">
+              <div class="custom-control custom-checkbox mb-3">
                 <input {%if form.save_info.value%}checked{%endif%} type="checkbox" name="save_info" class="custom-control-input" id="save-info">
-                <!-- {{form.save_info}} -->
                 <label class="custom-control-label" for="save-info">Save this information for next time</label>
               </div>
 
-              <hr>
-
-              <div class="d-block my-3">
-                {% for value, name in form.fields.payment_method.choices %}
-                <div class="custom-control custom-radio">
-                  <input id="{{name}}" name="payment_method" value="{{value}}" type="radio" class="custom-control-input" required>
-                  <label class="custom-control-label" for="{{name}}">{{name}}</label>
-                </div>
-                {% endfor %}
-              </div>
-
-
-              <hr class="mb-4">
-              <button class="btn btn-primary btn-lg btn-block" type="submit">Continue to checkout</button>
-
+              <button class="btn btn-primary btn-block">Continue to checkout</button>
+  
             </form>
 
+            {% if addresses %}
+              <hr>
+              <form method="post" class="card-body">
+                {% csrf_token %}
+              <strong>or</strong><p>select from my saved addresses</p>
+              <div class="row mt-4 mb-4">
+                <div class="col-4" >
+                  <select name="recent-addresses" class="custom-select d-block w-100" id="recentAddress" required>
+                    <option value="">---------</option>
+                    {% for address in addresses %}
+                    <option value="{{address.id}}">{{address.content}}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-primary btn-block mt-2">Continue to checkout</button>
+                </div>
+              </div>
+              </form>
+              {% endif %}
+
+            {% endif %}
           </div>
           <!--/.Card-->
 
@@ -148,30 +170,33 @@
               <span class="text-muted">${{order_item.total_item_price}}</span>
             </li>
             {% endfor %}
-            <li class="list-group-item d-flex justify-content-between bg-light">
+            <li class="pr-code-class list-group-item d-flex justify-content-between bg-light">
               <div class="text-success">
-                <h6 class="my-0">Promo code</h6>
-                <small>EXAMPLECODE</small>
+                <h6 class="my-0">Promo code (%{{order.promo_code.discount_value}})</h6>
+                <small>{% if order.promo_code %} {{order.promo_code.code}} {% else %}  {% endif %}</small>
               </div>
-              <span class="text-success">-$0</span>
+              <span class="text-success">$-{{order.discount_amount}}</span>
             </li>
             <li class="list-group-item d-flex justify-content-between">
               <span>Total (USD)</span>
-              <strong>${{order.total_price}}</strong>
+              <strong id="totalAfterDiscount">${{order.total_after_discount}}</strong>
             </li>
           </ul>
           <!-- Cart -->
-
+          {% if order.promo_code %}
+          {% else %}
           <!-- Promo code -->
-          <form class="card p-2">
+          <form id="promoCodeForm" class="card p-2">
+            {% csrf_token %}
             <div class="input-group">
-              <input type="text" class="form-control" placeholder="Promo code" aria-label="Recipient's username" aria-describedby="basic-addon2">
+              <input required name="promocode-input" type="text" class="form-control" placeholder="Promo code" aria-label="Recipient's username" aria-describedby="basic-addon2">
               <div class="input-group-append">
-                <button class="btn btn-secondary btn-md waves-effect m-0" type="button">Redeem</button>
+                <button class="btn btn-secondary btn-md waves-effect m-0" type="submit">Redeem</button>
               </div>
             </div>
           </form>
           <!-- Promo code -->
+          {% endif %}
 
         </div>
         <!--Grid column-->
@@ -182,5 +207,35 @@
     </div>
   </main>
   <!--Main layout-->
+
+{% endblock %}
+
+{% block script %}
+
+<script>
+  $('#promoCodeForm').on('submit', function(e){
+    e.preventDefault();
+    serializedFormData = $(this).serialize();
+    $.ajax({
+      url: "{% url 'core:validate_promocode' %}",
+      type: 'POST', 
+      data: serializedFormData,
+      success : function (res) {
+        if (res.success) {
+          $('.pr-code-class > div > h6').text('Promo code (%'+res.percent+')');
+          $('.pr-code-class > span').text('$-'+res.deducted);
+          $('.pr-code-class > div > small').text(res.code);
+          $('#totalAfterDiscount').text(res.total);
+          $('#promoCodeForm').remove();
+        }else{
+          alert(res.status)
+        }
+      }
+
+    })
+  });
+
+
+</script>
 
 {% endblock %}

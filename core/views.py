@@ -1,16 +1,16 @@
+from audioop import reverse
 from django.conf import settings
-from django.http import  Http404
-from django.shortcuts import get_object_or_404, render, redirect
+from django.http import  Http404, JsonResponse
+from django.db.models import Q
+from django.shortcuts import get_object_or_404, render, redirect, get_list_or_404
 from django.views.generic import  ListView, DetailView, View
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.paginator import Paginator
-from .models import Order, Item, OrderItem, BillingAddress, Payment, CATEGORY_CHOICES
+from .models import Order, Item, OrderItem, BillingAddress, Payment, CATEGORY_CHOICES, PromoCode
 from django.utils import timezone
 from .forms import CheckoutForm
 import stripe
-import json
 # Create your views here.
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -18,27 +18,35 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 class IndexView(ListView):
     template_name = 'ecommerce/home-page.html'
-    model = Item
     context_object_name = 'items'
-    paginate_by = 4
+    paginate_by = 12
     extra_context = {'cat_choices':CATEGORY_CHOICES}
-
-
-
-class ItemsByCategory(DetailView):
-
-    def get(slef, request, cat_name, *args, **kwargs):
-        items_list = Item.objects.filter(category=cat_name)
-        if items_list:
-            paginator = Paginator(items_list, 1)
-            page_number = request.GET.get('page')
-            items = paginator.get_page(page_number)
-
-            context = {'items':items, 'cat_choices':CATEGORY_CHOICES}
-            return render(request, 'ecommerce/itembycat.html', context)
-
+    def get_queryset(self):
+        query = self.request.GET.get('search')
+        if query is not None:
+            queryset = Item.objects.filter( Q(title__icontains=query) | Q(description__icontains=query))
+            return queryset
         else:
-            raise Http404()
+            return Item.objects.all().order_by('?')
+
+
+class ItemsByCategory(ListView):
+    template_name = 'ecommerce/itembycat.html'
+    slug_url_kwarg = 'cat_name'
+    context_object_name = 'items'
+    paginate_by = 12
+    extra_context = {'cat_choices':CATEGORY_CHOICES}
+    
+    def get_queryset(self):
+        cat_name = self.kwargs.get(self.slug_url_kwarg)
+        query = self.request.GET.get('search')
+        if query is not None:
+            filtered_items = Item.objects.filter(Q(title__icontains=query) | Q(description__icontains=query), category=cat_name)
+            return filtered_items
+        items_list = get_list_or_404(Item, category=cat_name)
+        return items_list
+
+
 
 
 
@@ -54,7 +62,6 @@ class Product(DetailView):
 class PurchasedOrders(View):
     def get(self, request, *args, **kwargs):
         orders = Order.objects.filter(user=request.user, ordered=True)
-        print(orders)
         context = {'orders':orders}
         return render(request, 'ecommerce/purchased_orders.html', context)
 
@@ -73,9 +80,18 @@ class AddToCart(LoginRequiredMixin, View):
             if order.items.filter(item__slug=item.slug).exists():
                 order_item.quantity +=1
                 order_item.save()
-                messages.info(request, 'quantity updated')
+                message = {
+                    "status":"Already in your cart, quantity = ",
+                    "cart":order.items.count(),
+                    "quantity":order_item.quantity,
+                    "item_total":f"{order_item.total_item_price()}",
+                    "total": f"{order.total_price()}",  
+                }
             else:
-                messages.info(request, 'added to your cart')
+                message = {
+                    "status":"added to your cart",
+                    "cart":order.items.count()+1
+                }
                 order.items.add(order_item)
         else:
             ordered_date = timezone.now()
@@ -84,8 +100,12 @@ class AddToCart(LoginRequiredMixin, View):
                 ordered_date=ordered_date,
             )
             order.items.add(order_item)
-            messages.info(request, 'added to your cart')
-        return redirect('core:order-summary')
+            message = {
+                    "status":"added to your cart",
+                    "cart":order.items.count()
+                }
+        return JsonResponse(message)
+
 
 
 
@@ -105,14 +125,26 @@ class RemoveFromCart(LoginRequiredMixin, View):
                 
                 if int(order_item.quantity) == 1:
                     order_item.delete()
-                    messages.info(request, 'removed from your cart')
-
+                    message = {
+                    "status":"quantity updated",
+                    "cart":order.items.count(),
+                    "quantity":order_item.quantity,
+                    "item_total":f"{order_item.total_item_price()}",
+                    "total": f"{order.total_price()}",  
+                } 
+                    return JsonResponse(message)
                 else:
                     order_item.quantity -=1
                     order_item.save()
-                    messages.info(request, '1 item removed from your cart')
+                    message = {
+                    "status":"quantity updated",
+                    "cart":order.items.count(),
+                    "quantity":order_item.quantity,
+                    "item_total":f"{order_item.total_item_price()}",
+                    "total": f"{order.total_price()}",  
+                } 
                 
-                return redirect('core:order-summary')
+                return JsonResponse(message)
             else:
                 messages.warning(request, 'this item was not in your cart')
                 return redirect('core:order-summary')
@@ -122,7 +154,7 @@ class RemoveFromCart(LoginRequiredMixin, View):
             return redirect('core:order-summary')
 
 
-class RemoveAllItems(View):
+class RemoveAllItems(LoginRequiredMixin, View):
     def get(self, request, slug):
         item = get_object_or_404(Item, slug=slug)
         order_qs = Order.objects.filter(user=request.user, ordered=False)
@@ -134,8 +166,12 @@ class RemoveAllItems(View):
                                            user=request.user,
                                            ordered=False)[0]
                 order_item.delete()
-                messages.info(request, 'removed from your cart')
-                return redirect('core:order-summary')
+                message = {
+                    "status":"item '" + order_item.item.title + "' removed from your cart",
+                    "total": f'{order.total_price()}',
+                    "cart":order.items.count()
+                }
+                return JsonResponse(message)
             
             else:
                 messages.warning(request, 'this item was not in your cart')
@@ -165,7 +201,7 @@ class OrderSummaryView(LoginRequiredMixin, View):
 
 
 
-class Checkout(View):
+class Checkout(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         try:
             order = Order.objects.get(user=request.user, ordered=False)
@@ -173,7 +209,8 @@ class Checkout(View):
                 messages.warning(request, 'you don\'t have items to checkout')
                 return redirect('core:order-summary')
             else:
-                context = {'form' : CheckoutForm, 'order':order}
+                addresses = BillingAddress.objects.filter(user=request.user, save_info=True)
+                context = {'form' : CheckoutForm, 'order':order, 'addresses':addresses}
                 return render(request, 'ecommerce/checkout-page.html', context)
         
         except ObjectDoesNotExist:
@@ -182,6 +219,13 @@ class Checkout(View):
     def post(self, request, *args, **kwargs):
         try:
             order = Order.objects.get(user=request.user, ordered=False)
+            recent_address = request.POST.get('recent-addresses')
+            if recent_address and BillingAddress.objects.filter(id=recent_address, user=request.user).exists():
+                user_address = BillingAddress.objects.get(id=recent_address, user=request.user)
+                order.billing_address = user_address
+                order.save()
+                return redirect('core:payment')
+                
             form = CheckoutForm(request.POST or None)
             if form.is_valid():
                 
@@ -189,9 +233,7 @@ class Checkout(View):
                 apartment_address = form.cleaned_data['apartment_address']
                 country = form.cleaned_data['country']
                 zip_code = form.cleaned_data['zip_code']
-                #same_billing_address = form.cleaned_data['same_billing_address']
-                #save_info = form.cleaned_data['save_info']
-                payment_method = form.cleaned_data['payment_method']
+                save_info = form.cleaned_data['save_info']
                 billing_address = BillingAddress(
                     user = request.user,
                     street_address = street_address,
@@ -199,41 +241,77 @@ class Checkout(View):
                     country = country,
                     zip_code = zip_code,
                 )
-
+                if save_info:
+                    billing_address.save_info = True
+                    billing_address.save()
+                    order.billing_address = billing_address
+                    order.save()
                 billing_address.save()
                 order.billing_address = billing_address
                 order.save()
                 
-                if payment_method == 'S':   
-                    return redirect('core:payment', 'stripe')
-                
-                elif payment_method == 'P':
-                    return redirect('core:payment', 'paypal')
-                else:
-                    raise Http404()
-            
+                return redirect('core:payment')
+                        
             messages.warning(request, 'not valid informations')
             return redirect('core:checkout')
         
         except ObjectDoesNotExist:  
             messages.warning(request, 'you don\'t have an active order')
             return redirect('core:order-summary')
-        
 
 
-class PaymentView(View):
-    def get(self, request, payment_method):
-        order = Order.objects.get(user=request.user, ordered=False)
-        context = {'order':order}
-        if payment_method == 'stripe':
+class ValidatePromCodeView(LoginRequiredMixin, View):
+    def post(self, request):
+        code = request.POST.get('promocode-input')
+        if code:
+            if PromoCode.objects.filter(code=code).exists():
+                promcode_instance = PromoCode.objects.get(code=code)
+                if promcode_instance.still_active():
+                    order_qs = Order.objects.filter(user=request.user, ordered=False)
+                    if order_qs.exists():
+                        order = order_qs[0]
+                        if order.promo_code:
+                            message = {"status":"already linked with promo code"}
+                            return JsonResponse(message)
+                        
+                        order.promo_code = promcode_instance
+                        order.save()
+                        message = {
+                            "success":True,
+                            "code":promcode_instance.code,
+                            "percent":promcode_instance.discount_value,
+                            "deducted":f"{order.discount_amount()}",
+                            "total":f"{order.total_after_discount()}",
+                            "status":"successfully linked to you order"
+                        }
+                        return JsonResponse(message)
+                        
+                    message = {"status":"no active order"}
+                    return JsonResponse(message)
+                
+                message = {"status":"promocode expired"}
+                return JsonResponse(message)
+            
+            message = {"status":"invalid promocode"}
+            return JsonResponse(message)
+                    
+        message = {"status":"no promocode entered"}
+        return JsonResponse(message)
+                
+
+
+
+class PaymentView(LoginRequiredMixin, View):
+    def get(self, request):
+        order = get_object_or_404(Order, user=request.user , ordered=False)
+        if order.billing_address:
+            order = Order.objects.get(user=request.user, ordered=False)
+            context = {'order':order}
             return render(request, 'ecommerce/payment_stripe.html',context)
-        
-        elif payment_method == 'paypal':
-            return render(request, 'ecommerce/payment_paypal.html')
-        
-        else:
-            raise Http404()
-        
+        messages.warning(request, 'checkout the order first')
+        return redirect('core:checkout')
+
+
     def post(self, request, *args, **kwargs):
         order = Order.objects.get(user=request.user, ordered=False)
         
@@ -242,7 +320,7 @@ class PaymentView(View):
         try:
         # Use Stripe's library to make requests...
             charge = stripe.Charge.create(
-            amount=int(order.total_price() *100),
+            amount=int(order.total_after_discount() *100),
             currency="usd",
             source=token
             )
@@ -251,7 +329,7 @@ class PaymentView(View):
             payment=Payment()
             payment.user = request.user
             payment.stripe_charge_id = charge['id']
-            payment.dollars = order.total_price()
+            payment.dollars = order.total_after_discount()
             payment.save()
 
             order.ordered = True

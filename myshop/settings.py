@@ -66,12 +66,16 @@ INSTALLED_APPS = [
 
 
 ACCOUNT_EMAIL_REQUIRED = True
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 SITE_ID = 1
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_USE_TLS = True
+EMAIL_PORT = 587
+EMAIL_HOST_USER = 'asibs2210@gmail.com'
+EMAIL_HOST_PASSWORD = 'xrgipttqhftstjcd'
 
-#661615433573-eccsqoi4ehdn6jcg2h16juri5mhr15rb.apps.googleusercontent.com
-#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
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
